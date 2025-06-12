@@ -23,10 +23,6 @@ export default function AppLayout({ children, user }) {
                         </div>
 
                         <div className="flex items-center space-x-4">
-                            <Link href="/notes/create" className="btn-primary">
-                                ✨ New Note
-                            </Link>
-
                             <div className="relative">
                                 <button
                                     onClick={() =>
