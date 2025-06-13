@@ -100,6 +100,7 @@ A sophisticated note-taking application built with Laravel 11, React, and OpenAI
 
     # OpenAI
     OPENAI_API_KEY=your_openai_api_key
+    OPENAI_MODEL=gpt-4.1-nano
     ```
 
 6. **Database Setup**
@@ -156,6 +157,7 @@ A sophisticated note-taking application built with Laravel 11, React, and OpenAI
 1. Sign up at [OpenAI](https://openai.com/)
 2. Generate an API key
 3. Add the key to your `.env` file
+4. Add the model to your `.env` file
 
 ## 🚦 API Endpoints
 
@@ -200,7 +202,7 @@ A sophisticated note-taking application built with Laravel 11, React, and OpenAI
 
     - Verify API key is correct
     - Check API usage limits
-    - Ensure proper model name (`gpt-3.5-turbo`)
+    - Ensure proper model name (`gpt-4.1-nano...`)
 
 2. **Google OAuth Issues**
 
