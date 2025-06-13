@@ -21,7 +21,6 @@ export default function AppLayout({ children, user }) {
                                 📝 AI Notes
                             </Link>
                         </div>
-
                         <div className="flex items-center space-x-4">
                             <div className="relative">
                                 <button
@@ -47,6 +46,12 @@ export default function AppLayout({ children, user }) {
                                             className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                                         >
                                             📊 Dashboard
+                                        </Link>
+                                        <Link
+                                            href="/analytics"
+                                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                        >
+                                            📈 Analytics
                                         </Link>
                                         <button
                                             onClick={handleLogout}

@@ -6,6 +6,7 @@ use App\Models\Note;
 use App\Services\OpenAIService;
 use Illuminate\Http\Request;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AIController extends Controller
@@ -90,9 +91,23 @@ class AIController extends Controller
 
             $note->update(['tags' => $tags]);
 
-            return response()->json(['tags' => $tags]);
+            // Always return JSON response since frontend is making AJAX call
+            return response()->json([
+                'success' => true,
+                'message' => 'Tags generated successfully',
+                'tags' => $tags
+            ]);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to generate tags: ' . $e->getMessage()], 500);
+            Log::error('Tag generation failed in controller', [
+                'error' => $e->getMessage(),
+                'note_id' => $note->id
+            ]);
+
+            // Always return JSON error response
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate tags: ' . $e->getMessage()
+            ], 500);
         }
     }
 }

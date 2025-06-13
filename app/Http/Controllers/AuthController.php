@@ -29,11 +29,9 @@ class AuthController extends Controller
         try {
             $googleUser = Socialite::driver('google')->user();
 
-            // First check if user exists by email (for existing users without google_id)
             $existingUser = User::where('email', $googleUser->getEmail())->first();
 
             if ($existingUser) {
-                // Update existing user with Google ID if they don't have one
                 if (!$existingUser->google_id) {
                     $existingUser->update([
                         'google_id' => $googleUser->getId(),
@@ -42,13 +40,12 @@ class AuthController extends Controller
                 }
                 $user = $existingUser;
             } else {
-                // Create new user
                 $user = User::create([
                     'name' => $googleUser->getName(),
                     'email' => $googleUser->getEmail(),
                     'avatar' => $googleUser->getAvatar(),
                     'google_id' => $googleUser->getId(),
-                    'password' => bcrypt('google-oauth'), // Default password for OAuth users
+                    'password' => bcrypt('google-oauth'),
                 ]);
             }
 

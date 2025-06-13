@@ -25,7 +25,7 @@ export default function Edit({ auth, note }) {
             if (data.title.trim() || data.content.trim()) {
                 autoSave();
             }
-        }, 2000); // Auto-save after 2 seconds of inactivity
+        }, 2000);
 
         return () => clearTimeout(timer);
     }, [data.title, data.content]);
@@ -236,20 +236,27 @@ export default function Edit({ auth, note }) {
                 },
             });
 
-            if (response.ok) {
-                const result = await response.json();
+            const result = await response.json();
+
+            if (response.ok && result.success) {
                 setAiResult(
                     `Generated tags: ${result.tags.join(
                         ", "
                     )}\n\nTags have been saved to your note.`
                 );
-                // Note: Don't reload the page anymore - let user see the result in modal
+
+                // Refresh the page to show the new tags
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000); // Give user time to see the result
             } else {
-                throw new Error("Failed to generate tags");
+                throw new Error(result.message || "Failed to generate tags");
             }
         } catch (error) {
             console.error("AI Tags failed:", error);
-            setAiResult("Failed to generate tags. Please try again.");
+            setAiResult(
+                `Failed to generate tags: ${error.message}. Please try again.`
+            );
         } finally {
             setAiProcessing(null);
             setLastAiOperation("tags");

@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\AIController;
+use App\Http\Controllers\AnalyticsController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
@@ -27,4 +28,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/notes/{note}/ai/summarize', [AIController::class, 'summarize'])->name('notes.ai.summarize');
     Route::post('/notes/{note}/ai/improve', [AIController::class, 'improveContent'])->name('notes.ai.improve');
     Route::post('/notes/{note}/ai/tags', [AIController::class, 'generateTags'])->name('notes.ai.tags');
+
+    // Analytics routes (Raw PHP component)
+    Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics.index');
+    Route::get('/analytics/data', [AnalyticsController::class, 'getUserAnalytics'])->name('analytics.data');
+    Route::get('/analytics/cli', [AnalyticsController::class, 'getAnalyticsViaCLI'])->name('analytics.cli');
 });

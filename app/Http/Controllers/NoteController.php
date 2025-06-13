@@ -79,10 +79,7 @@ class NoteController extends Controller
         $note->update($request->all());
         $note->calculateWordCount()->save();
 
-        return response()->json([
-            'message' => 'Note saved successfully',
-            'note' => $note
-        ]);
+        return back()->with('success', 'Note saved successfully');
     }
 
     public function destroy(Note $note)
@@ -102,6 +99,6 @@ class NoteController extends Controller
         $note->update($request->only(['title', 'content']));
         $note->calculateWordCount()->save();
 
-        return response()->json(['status' => 'saved']);
+        return back()->with('success', 'Note saved successfully');
     }
 }
