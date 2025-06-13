@@ -18,10 +18,15 @@ class NoteController extends Controller
             ->orderBy('updated_at', 'desc')
             ->get()
             ->map(function ($note) {
+                $strippedContent = strip_tags($note->content);
+                $truncatedContent = strlen($strippedContent) > 150
+                    ? substr($strippedContent, 0, 150) . '...'
+                    : $strippedContent;
+
                 return [
                     'id' => $note->id,
                     'title' => $note->title,
-                    'content' => substr(strip_tags($note->content), 0, 150) . '...',
+                    'content' => $truncatedContent,
                     'word_count' => $note->word_count,
                     'reading_time' => $note->reading_time,
                     'tags' => $note->tags,

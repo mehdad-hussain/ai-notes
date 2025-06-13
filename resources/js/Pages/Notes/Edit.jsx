@@ -14,6 +14,10 @@ export default function Edit({ auth, note }) {
     const [autoSaving, setAutoSaving] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [aiProcessing, setAiProcessing] = useState(null); // Track which AI operation is running
+    const [aiResult, setAiResult] = useState(""); // Store AI results
+    const [showAiResult, setShowAiResult] = useState(false); // Show AI result modal
+    const [lastAiOperation, setLastAiOperation] = useState(null); // Track the last completed AI operation
 
     // Auto-save functionality
     useEffect(() => {
@@ -73,7 +77,6 @@ export default function Edit({ auth, note }) {
     const handleDelete = () => {
         setShowDeleteModal(true);
     };
-
     const confirmDelete = () => {
         setDeleting(true);
         router.delete(`/notes/${note.id}`, {
@@ -82,6 +85,185 @@ export default function Edit({ auth, note }) {
                 setShowDeleteModal(false);
             },
         });
+    }; // AI Enhancement Functions with Streaming
+    const handleAiSummarize = async () => {
+        if (!data.content.trim()) {
+            alert("Please add some content before summarizing.");
+            return;
+        }
+
+        setAiProcessing("summarize");
+        setAiResult(""); // Clear previous result
+        setShowAiResult(true); // Show modal immediately
+
+        try {
+            const response = await fetch(`/notes/${note.id}/ai/summarize`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN":
+                        document
+                            .querySelector('meta[name="csrf-token"]')
+                            ?.getAttribute("content") || "",
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to start summarization");
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop(); // Keep incomplete line in buffer
+
+                for (const line of lines) {
+                    if (line.startsWith("data: ")) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.content) {
+                                setAiResult((prev) => prev + data.content);
+                            } else if (data.complete) {
+                                // Summary is complete
+                                break;
+                            } else if (data.error) {
+                                throw new Error(data.error);
+                            }
+                        } catch (e) {
+                            console.error("Error parsing streaming data:", e);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("AI Summarize failed:", error);
+            setAiResult("Failed to generate summary. Please try again.");
+        } finally {
+            setAiProcessing(null);
+            setLastAiOperation("summarize");
+        }
+    };
+
+    const handleAiImprove = async () => {
+        if (!data.content.trim()) {
+            alert("Please add some content before improving.");
+            return;
+        }
+
+        setAiProcessing("improve");
+        setAiResult(""); // Clear previous result
+        setShowAiResult(true); // Show modal with loading state
+
+        try {
+            const response = await fetch(`/notes/${note.id}/ai/improve`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN":
+                        document
+                            .querySelector('meta[name="csrf-token"]')
+                            ?.getAttribute("content") || "",
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to start content improvement");
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith("data: ")) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.content) {
+                                setAiResult((prev) => prev + data.content);
+                            } else if (data.complete) {
+                                break;
+                            } else if (data.error) {
+                                throw new Error(data.error);
+                            }
+                        } catch (e) {
+                            console.error("Error parsing streaming data:", e);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("AI Improve failed:", error);
+            setAiResult("Failed to improve content. Please try again.");
+        } finally {
+            setAiProcessing(null);
+            setLastAiOperation("improve");
+        }
+    };
+
+    const handleAiTags = async () => {
+        if (!data.content.trim() && !data.title.trim()) {
+            alert("Please add some content or title before generating tags.");
+            return;
+        }
+        setAiProcessing("tags");
+        setAiResult(""); // Clear previous result
+        setShowAiResult(true); // Show modal immediately
+
+        try {
+            const response = await fetch(`/notes/${note.id}/ai/tags`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN":
+                        document
+                            .querySelector('meta[name="csrf-token"]')
+                            ?.getAttribute("content") || "",
+                },
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                setAiResult(
+                    `Generated tags: ${result.tags.join(
+                        ", "
+                    )}\n\nTags have been saved to your note.`
+                );
+                // Note: Don't reload the page anymore - let user see the result in modal
+            } else {
+                throw new Error("Failed to generate tags");
+            }
+        } catch (error) {
+            console.error("AI Tags failed:", error);
+            setAiResult("Failed to generate tags. Please try again.");
+        } finally {
+            setAiProcessing(null);
+            setLastAiOperation("tags");
+        }
+    };
+    const applyImprovedContent = () => {
+        if (aiResult && aiProcessing !== "tags") {
+            setData({
+                ...data,
+                content: aiResult,
+            });
+            setShowAiResult(false);
+            setAiResult("");
+        }
     };
     return (
         <AppLayout user={auth.user}>
@@ -241,45 +423,139 @@ export default function Edit({ auth, note }) {
                                     <p className="mt-1 text-sm text-red-600">
                                         {errors.content}
                                     </p>
-                                )}
+                                )}{" "}
                             </div>
                         </div>
                     </div>
+                    {/* Tags Section */}
+                    {note.tags && note.tags.length > 0 && (
+                        <div className="card">
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        🏷️ Tags
+                                    </label>
+                                    <span className="text-xs text-gray-500">
+                                        Generated by AI
+                                    </span>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {note.tags.map((tag, index) => (
+                                        <span
+                                            key={index}
+                                            className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200"
+                                        >
+                                            {tag}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     {/* AI Enhancement Section */}
                     <div className="card">
                         <h3 className="text-lg font-semibold text-gray-900 mb-4">
                             🤖 AI Enhancement
-                        </h3>
+                        </h3>{" "}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <button
                                 type="button"
                                 className="btn-secondary text-center"
-                                onClick={() => {
-                                    // TODO: Implement AI summarize
-                                    alert("AI Summarize feature coming soon!");
-                                }}
+                                onClick={handleAiSummarize}
+                                disabled={aiProcessing === "summarize"}
                             >
-                                📝 Summarize
+                                {aiProcessing === "summarize" ? (
+                                    <>
+                                        <svg
+                                            className="animate-spin -ml-1 mr-2 h-4 w-4 inline"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <circle
+                                                className="opacity-25"
+                                                cx="12"
+                                                cy="12"
+                                                r="10"
+                                                stroke="currentColor"
+                                                strokeWidth="4"
+                                            ></circle>
+                                            <path
+                                                className="opacity-75"
+                                                fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                            ></path>
+                                        </svg>
+                                        Summarizing...
+                                    </>
+                                ) : (
+                                    "📝 Summarize"
+                                )}
                             </button>
                             <button
                                 type="button"
                                 className="btn-secondary text-center"
-                                onClick={() => {
-                                    // TODO: Implement AI improve
-                                    alert("AI Improve feature coming soon!");
-                                }}
+                                onClick={handleAiImprove}
+                                disabled={aiProcessing === "improve"}
                             >
-                                ✨ Improve Writing
+                                {aiProcessing === "improve" ? (
+                                    <>
+                                        <svg
+                                            className="animate-spin -ml-1 mr-2 h-4 w-4 inline"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <circle
+                                                className="opacity-25"
+                                                cx="12"
+                                                cy="12"
+                                                r="10"
+                                                stroke="currentColor"
+                                                strokeWidth="4"
+                                            ></circle>
+                                            <path
+                                                className="opacity-75"
+                                                fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                            ></path>
+                                        </svg>
+                                        Improving...
+                                    </>
+                                ) : (
+                                    "✨ Improve Writing"
+                                )}
                             </button>
                             <button
                                 type="button"
                                 className="btn-secondary text-center"
-                                onClick={() => {
-                                    // TODO: Implement AI tags
-                                    alert("AI Tags feature coming soon!");
-                                }}
+                                onClick={handleAiTags}
+                                disabled={aiProcessing === "tags"}
                             >
-                                🏷️ Generate Tags
+                                {aiProcessing === "tags" ? (
+                                    <>
+                                        <svg
+                                            className="animate-spin -ml-1 mr-2 h-4 w-4 inline"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <circle
+                                                className="opacity-25"
+                                                cx="12"
+                                                cy="12"
+                                                r="10"
+                                                stroke="currentColor"
+                                                strokeWidth="4"
+                                            ></circle>
+                                            <path
+                                                className="opacity-75"
+                                                fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                            ></path>
+                                        </svg>
+                                        Generating...
+                                    </>
+                                ) : (
+                                    "🏷️ Generate Tags"
+                                )}
                             </button>
                         </div>
                     </div>{" "}
@@ -354,6 +630,125 @@ export default function Edit({ auth, note }) {
                     </div>
                 </form>
             </div>
+
+            {/* AI Result Modal */}
+            {showAiResult && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                    <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+                        <div className="mt-3">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-medium text-gray-900">
+                                    🤖 AI Result
+                                </h3>
+                                <button
+                                    onClick={() => {
+                                        setShowAiResult(false);
+                                        setAiResult("");
+                                    }}
+                                    className="text-gray-400 hover:text-gray-600"
+                                >
+                                    <svg
+                                        className="h-6 w-6"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth="2"
+                                            d="M6 18L18 6M6 6l12 12"
+                                        />
+                                    </svg>
+                                </button>
+                            </div>
+                            <div className="mb-4">
+                                {aiProcessing ? (
+                                    <div className="flex items-center justify-center py-8">
+                                        <svg
+                                            className="animate-spin h-8 w-8 text-blue-600"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <circle
+                                                className="opacity-25"
+                                                cx="12"
+                                                cy="12"
+                                                r="10"
+                                                stroke="currentColor"
+                                                strokeWidth="4"
+                                            ></circle>
+                                            <path
+                                                className="opacity-75"
+                                                fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                            ></path>
+                                        </svg>
+                                        <span className="ml-2 text-gray-600">
+                                            Processing with AI...
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="bg-gray-50 p-4 rounded-lg">
+                                        <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono max-h-96 overflow-y-auto">
+                                            {aiResult}
+                                        </pre>
+                                    </div>
+                                )}
+                            </div>{" "}
+                            {!aiProcessing && aiResult && (
+                                <div className="flex justify-between">
+                                    <button
+                                        onClick={() => {
+                                            setShowAiResult(false);
+                                            setAiResult("");
+                                        }}
+                                        className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                                    >
+                                        Close
+                                    </button>
+
+                                    <div className="flex space-x-2">
+                                        {/* Show Apply button for summarize and improve features */}
+                                        {aiProcessing === null &&
+                                            aiResult &&
+                                            lastAiOperation &&
+                                            (lastAiOperation === "summarize" ||
+                                                lastAiOperation ===
+                                                    "improve") && (
+                                                <button
+                                                    onClick={
+                                                        applyImprovedContent
+                                                    }
+                                                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                                >
+                                                    Apply to Note
+                                                </button>
+                                            )}
+
+                                        {/* Show Refresh button for tags feature */}
+                                        {aiProcessing === null &&
+                                            aiResult &&
+                                            lastAiOperation === "tags" &&
+                                            aiResult.includes(
+                                                "Generated tags:"
+                                            ) && (
+                                                <button
+                                                    onClick={() =>
+                                                        window.location.reload()
+                                                    }
+                                                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                                                >
+                                                    Refresh Page
+                                                </button>
+                                            )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Delete Confirmation Modal */}
             <DeleteConfirmationModal
